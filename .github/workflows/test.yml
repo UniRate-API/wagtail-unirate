@@ -1,0 +1,53 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.10"
+            django: "4.2"
+            wagtail: "5.2"
+          - python-version: "3.11"
+            django: "5.0"
+            wagtail: "6.0"
+          - python-version: "3.12"
+            django: "5.1"
+            wagtail: "6.2"
+          - python-version: "3.13"
+            django: "5.2"
+            wagtail: "6.4"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies (Django ${{ matrix.django }} + Wagtail ${{ matrix.wagtail }})
+        run: |
+          uv sync --all-groups --python ${{ matrix.python-version }}
+          uv pip install --python ${{ matrix.python-version }} \
+            "Django~=${{ matrix.django }}.0" \
+            "wagtail~=${{ matrix.wagtail }}.0"
+
+      - name: Lint
+        run: |
+          uv run --group lint ruff check wagtail_unirate tests
+          uv run --group lint ruff format wagtail_unirate tests --diff
+
+      - name: Run unit tests
+        run: uv run --group test pytest tests/ -v
